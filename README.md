@@ -8,5 +8,5 @@ Analog clock for the Chrome new tab page.
 - `manifest.json` - Chrome extension manifest
 
 
-License: MIT
-Author: Timo Heimonen <timo.heimonen@proton.me>
+License: MIT  
+Author: Timo Heimonen <timo.heimonen@proton.me>  
