@@ -10,3 +10,4 @@ Analog clock for the Chrome new tab page.
 
 License: MIT  
 Author: Timo Heimonen <timo.heimonen@proton.me>  
+Page: https://www.clocksimulator.com
