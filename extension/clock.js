@@ -34,15 +34,16 @@ SOFTWARE.
   const hourHand = document.getElementById('hourHand');
   const minuteHand = document.getElementById('minuteHand');
   const secondHand = document.getElementById('secondHand');
-  const hourHandShadow = document.getElementById('hourHandShadow');
-  const minuteHandShadow = document.getElementById('minuteHandShadow');
-  const secondHandShadow = document.getElementById('secondHandShadow');
-  const centerDotShadow = document.getElementById('centerDotShadow');
+  const hourDS = document.getElementById('hourDS');
+  const minuteDS = document.getElementById('minuteDS');
+  const secondDS = document.getElementById('secondDS');
+  const dotDS = document.getElementById('dotDS');
   const themeToggle = document.getElementById('themeToggle');
   const saveSettingsToggle = document.getElementById('saveSettingsToggle');
   const saveSettingsLabel = document.getElementById('saveSettingsLabel');
 
   const CX = 100, CY = 100, R = 85;
+  let lastShadowAngle = -999;
 
   let savedSettings = null;
   try {
@@ -152,17 +153,20 @@ SOFTWARE.
     hourHand.setAttribute('transform', 'rotate(' + hourAngle + ' 100 100)');
     minuteHand.setAttribute('transform', 'rotate(' + minuteAngle + ' 100 100)');
 
-    const lightRad = hourAngle * Math.PI / 180;
-    const sdx = -Math.sin(lightRad);
-    const sdy = Math.cos(lightRad);
-    hourHandShadow.setAttribute('transform',
-      'translate(' + (0.8 * sdx) + ',' + (0.8 * sdy) + ') rotate(' + hourAngle + ' 100 100)');
-    minuteHandShadow.setAttribute('transform',
-      'translate(' + (1.2 * sdx) + ',' + (1.2 * sdy) + ') rotate(' + minuteAngle + ' 100 100)');
-    secondHandShadow.setAttribute('transform',
-      'translate(' + (1.8 * sdx) + ',' + (1.8 * sdy) + ') rotate(' + secondAngle + ' 100 100)');
-    centerDotShadow.setAttribute('transform',
-      'translate(' + (1.8 * sdx) + ',' + (1.8 * sdy) + ')');
+    if (Math.abs(hourAngle - lastShadowAngle) > 0.5) {
+      lastShadowAngle = hourAngle;
+      const lightRad = hourAngle * Math.PI / 180;
+      const sdx = -Math.sin(lightRad);
+      const sdy = Math.cos(lightRad);
+      hourDS.setAttribute('dx', 0.8 * sdx);
+      hourDS.setAttribute('dy', 0.8 * sdy);
+      minuteDS.setAttribute('dx', 1.2 * sdx);
+      minuteDS.setAttribute('dy', 1.2 * sdy);
+      secondDS.setAttribute('dx', 1.8 * sdx);
+      secondDS.setAttribute('dy', 1.8 * sdy);
+      dotDS.setAttribute('dx', 1.8 * sdx);
+      dotDS.setAttribute('dy', 1.8 * sdy);
+    }
 
     if (!document.hidden) {
       requestAnimationFrame(updateClock);
