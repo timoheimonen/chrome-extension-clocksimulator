@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "clocksimulator.com",
   "short_name": "clocksimulator.com",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "A clean, minimalist, distraction-free analog clock for your new tab page.",
   "chrome_url_overrides": {
     "newtab": "index.html"

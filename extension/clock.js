@@ -53,9 +53,19 @@ SOFTWARE.
     saveSettingsToggle.checked = true;
   }
 
-  if (savedSettings && savedSettings.theme === 'light') {
-    document.body.classList.add('light-mode');
-    themeToggle.checked = true;
+  if (savedSettings && savedSettings.theme) {
+    // Apply saved user preference
+    if (savedSettings.theme === 'light') {
+      document.body.classList.add('light-mode');
+      themeToggle.checked = true;
+    }
+  } else {
+    // No saved preference - check OS preference, fallback to light
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    if (!prefersDark) {
+      document.body.classList.add('light-mode');
+      themeToggle.checked = true;
+    }
   }
 
   function getTime() {
