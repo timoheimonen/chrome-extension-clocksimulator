@@ -23,6 +23,10 @@ SOFTWARE.
 */
 
 (function () {
+  const SHADOW_THROTTLE_MS = 100;
+  const BURN_IN_INTERVAL_MS = 600000;
+  const FAVICON_UPDATE_MS = 60000;
+
   function setAppHeight() {
     document.documentElement.style.setProperty('--app-height', window.innerHeight + 'px');
   }
@@ -40,36 +44,31 @@ SOFTWARE.
   const dotDS = document.getElementById('dotDS');
   const themeToggle = document.getElementById('themeToggle');
   const saveSettingsToggle = document.getElementById('saveSettingsToggle');
-  const saveSettingsLabel = document.getElementById('saveSettingsLabel');
 
   const CX = 100, CY = 100, R = 85;
-  let lastShadowAngle = -999;
+  let lastShadowUpdate = 0;
 
   let savedSettings = null;
   try {
     savedSettings = JSON.parse(localStorage.getItem('clocksimulator-user-settings'));
-  } catch (e) {}
+  } catch (e) {
+    savedSettings = null;
+  }
   if (savedSettings) {
     saveSettingsToggle.checked = true;
   }
 
-  if (savedSettings && savedSettings.theme) {
-    // Apply saved user preference
-    if (savedSettings.theme === 'light') {
-      document.body.classList.add('light-mode');
-      themeToggle.checked = true;
-    }
-  } else {
-    // No saved preference - check OS preference, fallback to light
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    if (!prefersDark) {
-      document.body.classList.add('light-mode');
-      themeToggle.checked = true;
-    }
+  if (savedSettings && savedSettings.theme === 'dark') {
+    document.documentElement.classList.add('dark-mode');
+  } else if (savedSettings && savedSettings.theme === 'light') {
+    document.documentElement.classList.remove('dark-mode');
+  } else if (!savedSettings && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+    document.documentElement.classList.add('dark-mode');
   }
+  themeToggle.checked = document.documentElement.classList.contains('dark-mode');
 
   function getTime() {
-    var now = new Date();
+    const now = new Date();
     return { hours: now.getHours(), minutes: now.getMinutes(),
              seconds: now.getSeconds(), millis: now.getMilliseconds() };
   }
@@ -127,11 +126,13 @@ SOFTWARE.
 
   function saveSettings() {
     if (!saveSettingsToggle.checked) return;
-    localStorage.setItem('clocksimulator-user-settings', JSON.stringify({
-      theme: document.body.classList.contains('light-mode') ? 'light' : 'dark',
-      wakeLock: document.getElementById('wakeLockToggle').checked,
-      secondModeTick: secondModeTick
-    }));
+    try {
+      localStorage.setItem('clocksimulator-user-settings', JSON.stringify({
+        theme: document.documentElement.classList.contains('dark-mode') ? 'dark' : 'light',
+        wakeLock: document.getElementById('wakeLockToggle').checked,
+        secondModeTick: secondModeTick
+      }));
+    } catch (e) {}
   }
 
   secondModeToggle.addEventListener('change', function () {
@@ -140,6 +141,7 @@ SOFTWARE.
   });
 
   function updateClock() {
+    const now = new Date();
     const t = getTime();
     const hours = t.hours % 12;
     const minutes = t.minutes;
@@ -158,24 +160,33 @@ SOFTWARE.
     } else {
       secondAngle = (seconds + millis / 1000) * 6;
     }
-    secondHand.setAttribute('transform', 'rotate(' + secondAngle + ' 100 100)');
+    document.documentElement.style.setProperty('--second-angle', secondAngle + 'deg');
 
-    hourHand.setAttribute('transform', 'rotate(' + hourAngle + ' 100 100)');
-    minuteHand.setAttribute('transform', 'rotate(' + minuteAngle + ' 100 100)');
+    hourHand.style.transform = 'rotate(' + hourAngle + 'deg)';
+    minuteHand.style.transform = 'rotate(' + minuteAngle + 'deg)';
 
-    if (Math.abs(hourAngle - lastShadowAngle) > 0.5) {
-      lastShadowAngle = hourAngle;
-      const lightRad = hourAngle * Math.PI / 180;
-      const sdx = -Math.sin(lightRad);
-      const sdy = Math.cos(lightRad);
-      hourDS.setAttribute('dx', 0.8 * sdx);
-      hourDS.setAttribute('dy', 0.8 * sdy);
-      minuteDS.setAttribute('dx', 1.2 * sdx);
-      minuteDS.setAttribute('dy', 1.2 * sdy);
-      secondDS.setAttribute('dx', 1.8 * sdx);
-      secondDS.setAttribute('dy', 1.8 * sdy);
-      dotDS.setAttribute('dx', 1.8 * sdx);
-      dotDS.setAttribute('dy', 1.8 * sdy);
+    const nowMs = Date.now();
+    if (nowMs - lastShadowUpdate > SHADOW_THROTTLE_MS) {
+      lastShadowUpdate = nowMs;
+      const localHour = now.getHours() + now.getMinutes() / 60;
+      const sunAngle = 90 + (localHour - 6) * 15;
+      const sunRad = sunAngle * Math.PI / 180;
+
+      const hourShadowRad = (hourAngle - sunAngle) * Math.PI / 180;
+      hourDS.setAttribute('dx', -0.8 * Math.cos(hourShadowRad));
+      hourDS.setAttribute('dy', -0.8 * Math.sin(hourShadowRad));
+
+      const minuteShadowRad = (minuteAngle - sunAngle) * Math.PI / 180;
+      minuteDS.setAttribute('dx', -1.2 * Math.cos(minuteShadowRad));
+      minuteDS.setAttribute('dy', -1.2 * Math.sin(minuteShadowRad));
+
+      const secondHandAngle = secondModeTick ? t.seconds * 6 : (t.seconds + millis / 1000) * 6;
+      const secondShadowRad = (secondHandAngle - sunAngle) * Math.PI / 180;
+      secondDS.setAttribute('dx', -1.8 * Math.cos(secondShadowRad));
+      secondDS.setAttribute('dy', -1.8 * Math.sin(secondShadowRad));
+
+      dotDS.setAttribute('dx', -1.8 * Math.cos(sunRad));
+      dotDS.setAttribute('dy', -1.8 * Math.sin(sunRad));
     }
 
     if (!document.hidden) {
@@ -191,8 +202,8 @@ SOFTWARE.
   requestAnimationFrame(updateClock);
 
   themeToggle.addEventListener('change', function () {
-    document.body.classList.remove('transparent-mode');
-    document.body.classList.toggle('light-mode', this.checked);
+    document.documentElement.classList.remove('transparent-mode');
+    document.documentElement.classList.toggle('dark-mode', this.checked);
     saveSettings();
   });
 
@@ -200,7 +211,9 @@ SOFTWARE.
     if (this.checked) {
       saveSettings();
     } else {
-      localStorage.removeItem('clocksimulator-user-settings');
+      try {
+        localStorage.removeItem('clocksimulator-user-settings');
+      } catch (e) {}
     }
   });
 
@@ -238,21 +251,23 @@ SOFTWARE.
       activeTrapHandler = null;
     }
     if (previousFocus) {
-      previousFocus.focus();
+      previousFocus.focus({ preventScroll: true });
       previousFocus = null;
     }
   }
 
   function closeAboutBubble() {
     aboutBubble.classList.remove('visible');
+    aboutBubble.setAttribute('aria-hidden', 'true');
+    aboutBubble.setAttribute('inert', '');
     document.body.classList.remove('about-bubble-open');
+    aboutBtn.setAttribute('aria-expanded', 'false');
   }
 
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
       if (helpOverlay.classList.contains('visible')) {
-        helpOverlay.classList.remove('visible');
-        releaseTrap(helpOverlay);
+        closeHelpPanel();
       } else {
         closeAboutBubble();
       }
@@ -260,12 +275,18 @@ SOFTWARE.
   });
 
   function showToggle() {
+    if (helpOverlay.classList.contains('visible')) return;
     document.body.classList.remove('cursor-hidden');
+    toggleWrapper.removeAttribute('inert');
     toggleWrapper.classList.add('visible');
+    toggleWrapper.setAttribute('aria-hidden', 'false');
     clearTimeout(hideTimer);
-    if (aboutBubble.classList.contains('visible') || helpOverlay.classList.contains('visible')) return;
+    if (aboutBubble.classList.contains('visible')) return;
     hideTimer = setTimeout(function () {
+      if (toggleWrapper.contains(document.activeElement)) return;
       toggleWrapper.classList.remove('visible');
+      toggleWrapper.setAttribute('inert', '');
+      toggleWrapper.setAttribute('aria-hidden', 'true');
       document.body.classList.add('cursor-hidden');
       closeAboutBubble();
     }, 1000);
@@ -273,8 +294,16 @@ SOFTWARE.
 
   aboutBtn.addEventListener('click', function (e) {
     e.stopPropagation();
-    aboutBubble.classList.toggle('visible');
-    document.body.classList.toggle('about-bubble-open', aboutBubble.classList.contains('visible'));
+    const isOpen = aboutBubble.classList.contains('visible');
+    if (isOpen) {
+      closeAboutBubble();
+    } else {
+      aboutBubble.removeAttribute('inert');
+      aboutBubble.classList.add('visible');
+      aboutBubble.setAttribute('aria-hidden', 'false');
+      document.body.classList.add('about-bubble-open');
+      aboutBtn.setAttribute('aria-expanded', 'true');
+    }
     clearTimeout(hideTimer);
   });
 
@@ -292,10 +321,27 @@ SOFTWARE.
     showToggle();
   });
   document.addEventListener('touchstart', showToggle, { passive: true });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Tab') showToggle();
+  });
+  toggleWrapper.addEventListener('focusin', function () {
+    clearTimeout(hideTimer);
+    toggleWrapper.removeAttribute('inert');
+    toggleWrapper.classList.add('visible');
+    toggleWrapper.setAttribute('aria-hidden', 'false');
+    document.body.classList.remove('cursor-hidden');
+  });
+  toggleWrapper.addEventListener('focusout', function (e) {
+    if (!toggleWrapper.contains(e.relatedTarget)) {
+      showToggle();
+    }
+  });
   window.addEventListener('focus', showToggle);
   window.addEventListener('blur', function () {
     clearTimeout(hideTimer);
     toggleWrapper.classList.remove('visible');
+    toggleWrapper.setAttribute('inert', '');
+    toggleWrapper.setAttribute('aria-hidden', 'true');
     closeAboutBubble();
   });
 
@@ -353,10 +399,10 @@ SOFTWARE.
   }
 
   updateFavicon();
-  const msToNextMinute = 60000 - (Date.now() % 60000);
+  const msToNextMinute = FAVICON_UPDATE_MS - (Date.now() % FAVICON_UPDATE_MS);
   setTimeout(function () {
     updateFavicon();
-    setInterval(updateFavicon, 60000);
+    setInterval(updateFavicon, FAVICON_UPDATE_MS);
   }, msToNextMinute);
 
   if ('wakeLock' in navigator) {
@@ -421,22 +467,50 @@ SOFTWARE.
     burnInStep++;
   }
 
-  setInterval(applyBurnInShift, 600000);
+  let burnInInterval = null;
+
+  function startBurnIn() {
+    if (!burnInInterval) {
+      burnInInterval = setInterval(applyBurnInShift, BURN_IN_INTERVAL_MS);
+    }
+  }
+
+  function stopBurnIn() {
+    clearInterval(burnInInterval);
+    burnInInterval = null;
+  }
+
+  if (!document.hidden) startBurnIn();
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) {
+      stopBurnIn();
+    } else {
+      startBurnIn();
+    }
+  });
 
   const helpLink = document.getElementById('helpLink');
   const helpCloseBtn = document.getElementById('helpCloseBtn');
 
   function openHelpPanel(e) {
     if (e) e.preventDefault();
+    previousFocus = document.activeElement;
+    if (aboutBubble.contains(previousFocus)) {
+      previousFocus = aboutBtn;
+    }
     closeAboutBubble();
     clearTimeout(hideTimer);
-    previousFocus = document.activeElement;
+    helpOverlay.removeAttribute('inert');
     helpOverlay.classList.add('visible');
+    helpOverlay.setAttribute('aria-hidden', 'false');
     trapFocus(helpOverlay);
   }
 
   function closeHelpPanel() {
     helpOverlay.classList.remove('visible');
+    helpOverlay.setAttribute('aria-hidden', 'true');
+    helpOverlay.setAttribute('inert', '');
     releaseTrap(helpOverlay);
   }
 
